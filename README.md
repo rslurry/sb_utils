@@ -87,12 +87,35 @@ with tiles at zoom 12) and re-run until you do not have any of those messages.
 You may also want to re-run `add_labels` multiple times to decide which place 
 tags should be in which categories.
 
+### Labels
+You may want to look at OSM's list of available 'place' keys: <https://wiki.openstreetmap.org/wiki/Key:place>
+
+For the maps I have made, here are the setups I chose:
+
+    US maps:
+        cities = ['city', 'borough', 'town']
+        suburbs = ['suburb', 'village']
+        neighborhoods = ['neighbourhood', 'hamlet', 'quarter', 'locality']
+    PR maps:
+        cities = ['city', 'borough', 'town']
+        suburbs = ['suburb']
+        neighborhoods = ['village', 'quarter']
+    MX maps:
+        cities = ['city', 'borough']
+        suburbs = ['city', 'borough', 'town', 'suburb']
+        neighborhoods = ['city', 'borough', 'town', 'suburb', 'village', 'hamlet']
+
+## Future plans
+At some point I will add a way to create and manipulate demand data.  Stay tuned.
+
+## Contributions
+I'd love for people to continue developing this tool so that it can serve the needs of the community. 
+Feel free to submit Pull Requests with new features, optimizations, etc.
+
 ## Questions?  Issues?  Requests?
 
 Open an issue here on GitHub or provide feedback in Discord.
 
 ## License
 
-This library is made available under the GPL v3 license.  See LICENSE for 
-details.
-
+This library is made available under the GPL v3 license.  See LICENSE for details.
