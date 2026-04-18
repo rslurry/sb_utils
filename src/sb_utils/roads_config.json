@@ -1,0 +1,15 @@
+{
+    "attributes": {
+        "type": false,
+        "id": false,
+        "version": false,
+        "changeset": false,
+        "timestamp": false,
+        "uid": false,
+        "user": false,
+        "way_nodes": false
+    },
+    "format": "geojson",
+    "print_record_separator": false,
+    "pretty": false
+}
