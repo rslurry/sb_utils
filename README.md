@@ -50,7 +50,7 @@ custom maps.  This is handled through the `MapGen` class.
 | ------------------ |:-------------:|
 | `city`             | str. 2-4 character city code.        |
 | `bbox`             | list of floats. Bounding box for the map. [min_lon, min_lat, max_lon, max_lat]         |
-| `osmpbf`          | str. Path to local .osm.pbf file to use as a source.         |
+| `osmpbf`          | str. Path to local .osm.pbf file to use as a source. Obtain it from <https://download.geofabrik.de/>        |
 | `outputdir` | str. Path to output directory. Within the specified directory, a new directory named `city` will be created to hold all outputs and intermediate files. Defaults to the current directory. Default: current working directory         |
 | `building_filter_size`              | int. Filters buildings below this size (in m^2) for collisions and for pmtiles at zooms 14-15. Default: 40         |
 | `z13_limit`             | int.  Filters buildings below this size (in m^2) for pmtiles at zoom 13.  Must be >= building_filter_size. If None, uses `building_filter_size`. Default: None         |
@@ -64,7 +64,7 @@ custom maps.  This is handled through the `MapGen` class.
 | `RAM`             | int or float. Sets the amount of RAM in GB to use when calling mapshaper.  If you get heap allocation errors, increase this value.  Keep in mind your OS and other programs still need to run, so don't try to allocate your system's full RAM amount. Default: 4         |
 | `verb`             | bool. Determines whether to print additional info or not. Default: True        |
 
-After initializing a `MapGen` object, there are 5 key methods that handle creating the files used for SB maps:
+### `MapGen` methods that you care about
 | Class method                 | Description                                                    |
 | ---------------------------- |:--------------------------------------------------------------:|
 | `extract_base_data`          | osmium extract for base layers                                 |
@@ -75,7 +75,8 @@ After initializing a `MapGen` object, there are 5 key methods that handle creati
 | `run_all`                    | Runs the above 5 methods consecutively                         |
 
 These methods take no inputs; they use what you provide when initializing the 
-object. Execute them in the order they are listed above.
+object. `extract_base_data` must be executed first; `process_buildings` must be executed before `generate_pmtiles`; 
+and `generate_pmtiles` must be executed before `add_labels`.
 
 You may need to re-run `generate_pmtiles` multiple times to ensure that there 
 aren't tile size issues at certain zooms; you will see a warning message if 
