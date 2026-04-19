@@ -35,6 +35,10 @@ available within your path to create the non-demand files needed for custom maps
 * [pmtiles](https://github.com/protomaps/go-pmtiles/releases)
 * [planetiler.jar](https://github.com/onthegomap/planetiler/releases)
 
+These must be executable (even `planetiler.jar` despite that .jar files are not executable) 
+so that `sb_utils` can determine that they are available.  The code will not run if any of 
+these requirements are missing.
+
 ## Installation
 In the repo directory, run
 
