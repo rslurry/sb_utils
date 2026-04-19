@@ -53,8 +53,6 @@ class MapGen:
                     accessible.
     rename_geojson_property : Renames a GeoJSON property key using jq.
     add_labels : Extraction and tiling for labels. 
-    _update_pmtiles_metadata : Updates the internal PMTiles metadata using the 
-                               pmtiles CLI.
     _validate_places : Ensures cities/suburbs/neighborhoods are valid entries.
     """
     REQUIRED_BINS = ['node', 'mapshaper', 'osmium', 'java', 'tile-join', 
@@ -1121,40 +1119,25 @@ class MapGen:
         self._run_command(tippe_cmd)
 
         # Merge and update metadata
-        self._run_command(["tile-join", "-o", final_output, 
+        final_mbtiles = final_output.replace('.pmtiles', '.mbtiles')
+        self._run_command(["tile-join", "-o", 
+                           final_mbtiles, 
                            no_labels_pmtiles, labels_only_pmtiles,
                            '--force'])
-        self._update_pmtiles_metadata(final_output)
+        self._update_mbtiles_metadata(final_mbtiles)
+        self._run_command(["pmtiles", "convert", final_mbtiles, 
+                           final_output])
         
         if self.cleanup_files:
             os.remove(geojson_paths['cities'])
             os.remove(geojson_paths['suburbs'])
             os.remove(geojson_paths['neighborhoods'])
             os.remove(labels_only_pmtiles)
+            os.remove(final_mbtiles)
 
         if self.verb:
             print(f"***** Done. Final pmtiles created at: *****")
             print(f"    {final_output}")
-    
-    def _update_pmtiles_metadata(self, file_path):
-        """
-        Updates the internal PMTiles metadata using the pmtiles CLI.
-        """
-        metadata = {
-            "name": f"{self.city} Basemap",
-            "type": "baselayer"
-        }
-        
-        temp_json = os.path.join(self.city_dir, "temp_meta.json")
-        try:
-            with open(temp_json, 'w') as f:
-                json.dump(metadata, f)
-            
-            self._run_command(["pmtiles", "edit", str(file_path), 
-                               f"--metadata={temp_json}"])
-        finally:
-            if os.path.exists(temp_json):
-                os.remove(temp_json)
     
     def _validate_places(self, name, val):
         """Ensures cities/suburbs/neighborhoods are valid entries."""
