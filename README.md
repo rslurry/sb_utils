@@ -29,7 +29,7 @@ available within your path to create the non-demand files needed for custom maps
 * [mapshaper](https://github.com/mbloch/mapshaper)
 * [osmium](https://osmcode.org/osmium-tool/)
 * java
-* [tippecanoe and tile-join](https://github.com/mapbox/tippecanoe)
+* [tippecanoe and tile-join](https://github.com/felt/tippecanoe)
 * sqlite3
 * jq
 * [pmtiles](https://github.com/protomaps/go-pmtiles/releases)
