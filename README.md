@@ -56,12 +56,12 @@ custom maps.  This is handled through the `MapGen` class.
 | `bbox`             | list of floats. Bounding box for the map. [min_lon, min_lat, max_lon, max_lat]         |
 | `osmpbf`          | str. Path to local .osm.pbf file to use as a source. Obtain it from <https://download.geofabrik.de/>        |
 | `outputdir` | str. Path to output directory. Within the specified directory, a new directory named `city` will be created to hold all outputs and intermediate files. Defaults to the current directory. Default: current working directory         |
-| `building_filter_size`              | int. Filters buildings below this size (in m^2) for collisions and for pmtiles at zooms 14-15. Default: 40         |
-| `z13_limit`             | int.  Filters buildings below this size (in m^2) for pmtiles at zoom 13.  Must be >= building_filter_size. If None, uses `building_filter_size`. Default: None         |
-| `z12_limit`            | int.  Filters buildings below this size (in m^2) for pmtiles at zoom 12.  Must be >= z13_limit. If None, uses `z13_limit`. Default: None         |
+| `building_index_filter_size`              | int. Filters buildings below this size (in m^2) for collisions. Default: 40         |
+| `building_tile_filter_size`               | int. Filters buildings below this size (in m^2) for pmtiles. Must be <= `building_index_filter_size`.  If None, it is set to `building_index_filter_size`. Default: None         |
 | `cities`             | list of str. OSM 'place' values to show at the lowest zooms. If None, labels will not be created for that zoom. Default: None         |
 | `suburbs`             | list of str. Like cities, but for medium zooms. Default: None         |
 | `neighborhoods`             | list of str. Like cities, but for the highest zooms. Default: None         |
+| `buildings_geojson`                | str or None. If a string, path to a buildings.geojson file to use as input. If None, fetches Overture buildings. Default: None |
 | `redownload_buildings`             | bool. Determines whether to re-fetch buildings (True) or load previously-saved buildings if available (False). Default: False        |
 | `ncores`             | int. Number of cores to use when processing tiles in parallel. Setting this to None will use all available cores. Default: 1         |
 | `cleanup_files`             | bool. If True, deletes some intermediate files that are created and used within the same function. Default: True         |
