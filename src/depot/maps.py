@@ -59,10 +59,11 @@ class MapGen:
                      'tippecanoe', 'sqlite3', 'jq', 'pmtiles', 
                      'planetiler.jar']
     def __init__(self, city, bbox, osmpbf=None, outputdir='.', 
-                       building_filter_size=40, z13_limit=None, z12_limit=None, 
+                       building_index_filter_size=40, 
+                       building_tile_filter_size=None, 
                        cities=None, suburbs=None, neighborhoods=None,
-                       redownload_buildings=False, ncores=1, 
-                       cleanup_files=True, RAM=4, verb=True):
+                       buildings_geojson=None, redownload_buildings=False, 
+                       ncores=1, RAM=4, cleanup_files=True, verb=True):
         """
         Inputs
         ------
@@ -79,22 +80,23 @@ class MapGen:
                         and intermediate files.
                         Defaults to the current directory.
                         Default: current working directory
-        building_filter_size: int. Filters buildings below this size (in m^2) 
+        building_index_filter_size: int. Filters buildings below this size (in m^2) 
                                    for collisions and for pmtiles at zooms 
                                    14-15.
                                    Default: 40
-        z13_limit: int.  Filters buildings below this size (in m^2) for pmtiles
-                         at zoom 13.  Must be >= building_filter_size.
-                         If None, uses `building_filter_size`.
-                         Default: None
-        z12_limit: int.  Filters buildings below this size (in m^2) for pmtiles
-                         at zoom 12.  Must be >= z13_limit.
-                         If None, uses `z13_limit`.
+        building_tile_filter_size: int.  Filters buildings below this size (in m^2) for pmtiles
+                         at the highest zooms.  Must be >= building_index_filter_size.
+                         If None, uses `building_index_filter_size`.
                          Default: None
         cities: list of str. OSM 'place' values to show at the lowest zooms.
                              If None, labels will not be created for that zoom.
         suburbs: list of str. Like cities, but for medium zooms.
         neighborhoods: list of str. Like cities, but for the highest zooms.
+        buildings_geojson: str. Path to buildings.geojson file to use.
+                                If provided, Overture buildings will not be 
+                                downloaded.
+                                If None, Overture buildings will be downloaded.
+                                Default: None
         redownload_buildings: bool. Determines whether to re-fetch 
                                     buildings (True) or load previously-saved
                                     buildings if available (False).
@@ -102,15 +104,15 @@ class MapGen:
         ncores: int. Number of cores to use when processing tiles in parallel.
                      Setting this to None will use all available cores.
                      Default: 1
-        cleanup_files: bool. If True, deletes some intermediate files that are
-                             created and used within the same function.
-                             Default: True
         RAM: int or float. Sets the amount of RAM in GB to use when calling 
                            mapshaper.  If you get heap allocation errors, 
                            increase this value.  Keep in mind your OS and other
                            programs still need to run, so don't try to allocate
                            your system's full RAM amount.
                            Default: 4
+        cleanup_files: bool. If True, deletes some intermediate files that are
+                             created and used within the same function.
+                             Default: True
         verb: bool. Determines whether to print additional info or not.
                     Default: True
         """
@@ -127,24 +129,22 @@ class MapGen:
                         "Specify a local .osm.pbf file.")
         self.osmpbf = osmpbf
         self.outputdir = outputdir
+        self.buildings_geojson = buildings_geojson
         self.REFETCH_BUILDINGS = bool(redownload_buildings)
         self.ncores = ncores
         self.RAM = RAM # Multiplied by 1000 in the setter to convert GB -> MB
         self.cleanup_files = bool(cleanup_files)
         
         # Set building area limits
-        self.building_filter_size = building_filter_size
-        self.z13_limit = z13_limit if z13_limit is not None \
-                         else self.building_filter_size
-        if self.z13_limit < self.building_filter_size:
-            raise ValueError(f"z13_limit ({self.z13_limit}) cannot be smaller "
-                             f"than building_filter_size "
-                             f"({self.building_filter_size})")
-        # Fallback logic: if z12_limit is None, use z13_limit
-        self.z12_limit = z12_limit if z12_limit is not None else self.z13_limit
-        if self.z12_limit < self.z13_limit:
-            raise ValueError(f"z12_limit ({self.z12_limit}) cannot be "
-                             f"smaller than z13_limit ({self.z13_limit})")
+        self.building_index_filter_size = building_index_filter_size
+        self.building_tile_filter_size = building_tile_filter_size \
+                                    if building_tile_filter_size is not None \
+                                    else self.building_index_filter_size
+        if self.building_tile_filter_size > self.building_index_filter_size:
+            raise ValueError(f"building_tile_filter_size "
+                             f"({self.building_tile_filter_size}) cannot be "
+                             f"larger than building_index_filter_size "
+                             f"({self.building_index_filter_size})")
         
         # Labels
         self.cities = cities
@@ -161,9 +161,8 @@ class MapGen:
             print(f"bbox                : {self.bbox}")
             print(f"osmpbf              : {self.osmpbf}")
             print(f"redownload_buildings: {self.REFETCH_BUILDINGS}")
-            print(f"building_filter_size: {self.building_filter_size} m2")
-            print(f"z13_limit           : {self.z13_limit} m2")
-            print(f"z12_limit           : {self.z12_limit} m2")
+            print(f"building_index_filter_size: {self.building_index_filter_size} m2")
+            print(f"building_tile_filter_size : {self.building_tile_filter_size} m2")
             print(f"ncores              : {self.ncores}")
             print(f"RAM                 : {self.RAM} MB")
             print(f"cleanup_files       : {self.cleanup_files}")
@@ -184,10 +183,10 @@ class MapGen:
         Helper to run shell commands safely.
         """
         try:
-            subprocess.run(cmd, check=True, shell=isinstance(cmd, str), 
-                           cwd=cwd)
+            result = subprocess.run(cmd, check=True, shell=isinstance(cmd, str), 
+                           cwd=cwd)#, capture_output=True, text=True)
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Command failed: {cmd}\nError: {e}")
+            raise RuntimeError(f"Command failed: {cmd}\nError: {e.stderr}")
     
     def extract_base_data(self):
         """
@@ -207,6 +206,20 @@ class MapGen:
             out_pbf, "--overwrite"
         ]
         self._run_command(cmd)
+        
+        # Filter out buildings
+        nobuilding_pbf = os.path.join(self.city_dir, f"{self.city.lower()}-nobuildings.osm.pbf")
+        self._run_command([
+            "osmium", "tags-filter", out_pbf, 
+            "n/building=yes", "w/building=yes", 
+            "-o", nobuilding_pbf, "--overwrite"
+        ])
+        
+        self.nobuildings_geojson = nobuilding_pbf.replace('.osm.pbf', '.geojson')
+        self._run_command([
+            "ogr2ogr", "-f", "GeoJSONSeq", 
+            self.nobuildings_geojson, nobuilding_pbf
+        ])
         
     def _convert_to_game_format(self, input_path):
         """
@@ -347,7 +360,8 @@ class MapGen:
         OVERTURE_RELEASE = "2026-03-18.0"
         
         buildings_pkl = os.path.join(self.city_dir, "buildings.pkl")
-        buildings_geojson = os.path.join(self.city_dir, "buildings.geojson")
+        self.buildings_geojson = os.path.join(self.city_dir, 
+                                              "buildings.geojson")
 
         # Check if we already have the data to avoid expensive re-downloads
         if not os.path.exists(buildings_pkl) or self.REFETCH_BUILDINGS:
@@ -408,8 +422,8 @@ class MapGen:
         gdf = gpd.GeoDataFrame(df, geometry='geometry', crs="EPSG:4326")
         
         if self.verb:
-            print(f"Saving to {buildings_geojson}...", flush=True)
-        gdf.to_file(buildings_geojson, driver='GeoJSON')
+            print(f"Saving to {self.buildings_geojson}...", flush=True)
+        gdf.to_file(self.buildings_geojson, driver='GeoJSON')
     
     def get_utm_epsg(self):
         """
@@ -434,18 +448,18 @@ class MapGen:
         """
         if self.verb:
             print("***** Processing Buildings *****")
-        # 1. Fetch buildings from Overture
-        self._fetch_overture_buildings()
+        
+        if self.buildings_geojson is None:
+            # 1. Fetch buildings from Overture
+            self._fetch_overture_buildings()
 
         # 2. Mapshaper Cleanup
-        buildings_geojson = os.path.join(self.city_dir, "buildings.geojson")
         cleaned_json = os.path.join(self.city_dir, "buildings_cleaned.json")
-        
         mapshaper_cmd = (
             f"node --max-old-space-size={self.RAM} $(which mapshaper) "
-            f"{buildings_geojson} -snap 0.00001 -proj {self.epsg} -clean "
-            f"-filter 'this.area > {self.building_filter_size}' "
-            f"-simplify 20% keep-shapes -proj wgs84 "
+            f"{self.buildings_geojson} -proj {self.epsg} -snap 0.5 -clean "
+            f"-filter 'this.area > {self.building_index_filter_size}' "
+            f"-simplify dp interval=2 -proj wgs84 "
             f"-o precision=0.00001 {cleaned_json}"
         )
         self._run_command(mapshaper_cmd)
@@ -530,11 +544,12 @@ class MapGen:
         base_name = self.city.lower()
         path_prefix = os.path.join(self.city_dir, base_name)
         city_pbf = f"{path_prefix}.osm.pbf"
+        self.nobuildings_geojson = os.path.join(self.city_dir, f"{self.city.lower()}-nobuildings.geojson")
         raw_mbtiles = f"{path_prefix}.mbtiles"
         clean_mbtiles = f"{path_prefix}-clean.mbtiles"
         fixed_mbtiles = f"{path_prefix}-fixed.mbtiles"
         merged_mbtiles = f"{path_prefix}-merged.mbtiles"
-        final_pmtiles = f"{path_prefix}-final.pmtiles"
+        self.buildings_mbtiles = os.path.join(self.city_dir, "buildings.mbtiles")
         final_pmtiles = os.path.join(self.city_dir, self.city+"-nolabels.pmtiles")
 
         # 1. Planetiler
@@ -555,42 +570,47 @@ class MapGen:
             "--download", 
             "--minzoom=0", 
             "--maxzoom=15", 
+            "--only-layers=aerodrome_label,aeroway,boundary,landcover,landuse,park,water,water_name,waterway,transportation,roads",
             "--force"
         ])
-
+        
         # 2. Initial Tile-join Clean
         self._run_command([
             "tile-join", "--force", "--rename=landcover:landuse", 
             "--rename=park:landuse", "--exclude=housenumber", 
             "--exclude=aerodrome_label", "--exclude=mountain_peak", 
-            "--exclude=transportation_name", "--exclude=buildings", "-pk", 
+            "--exclude=transportation_name", 
+            "--exclude=building", "--exclude=buildings", "-pk", 
             "-o", clean_mbtiles, raw_mbtiles
         ])
         
         if self.cleanup_files:
             os.remove(raw_mbtiles)
-
+        
         # 3. Fix the tiles as SB expects
         self.fix_mbtiles() # Turns clean_mbtiles into fixed_mbtiles
         
         if self.cleanup_files:
             os.remove(clean_mbtiles)
+        
 
-        # 4. Building Overlays (z12 and z13+)
+        # 4. Building Overlays (z12, 13, and 14+)
         self._generate_building_tiles()
 
         # 5. Merge buildings
+        self._update_mbtiles_metadata(fixed_mbtiles)
+        self._update_mbtiles_metadata(self.buildings_mbtiles)
+        
         self._run_command([
-            "tile-join", "--force", "-o", merged_mbtiles,
-            fixed_mbtiles, self.z12_mbtiles, self.z13_mbtiles, self.z14_mbtiles
+            "tile-join", "--force", 
+            "-o", merged_mbtiles,
+            fixed_mbtiles, self.buildings_mbtiles
         ])
         
         if self.cleanup_files:
             os.remove(fixed_mbtiles)
-            os.remove(self.z12_mbtiles)
-            os.remove(self.z13_mbtiles)
-            os.remove(self.z14_mbtiles)
-
+            os.remove(self.buildings_mbtiles)
+        
         # 6. Metadata and PMTiles Convert
         self._update_mbtiles_metadata(merged_mbtiles)
         self._run_command(["pmtiles", "convert", merged_mbtiles, 
@@ -880,98 +900,62 @@ class MapGen:
         if self.verb:
             print("***** Generating Building Overlays (z12, z13, z14+) *****")
         
-        buildings_geojson = os.path.join(self.city_dir, "buildings.geojson")
-        
         # Paths for intermediate files
-        z12_geojson = os.path.join(self.city_dir, "buildings_z12.geojson")
-        z13_geojson = os.path.join(self.city_dir, "buildings_z13.geojson")
-        z14_geojson = os.path.join(self.city_dir, "buildings_z14plus.geojson")
-        self.z12_mbtiles = os.path.join(self.city_dir, "z12.mbtiles")
-        self.z13_mbtiles = os.path.join(self.city_dir, "z13.mbtiles")
-        self.z14_mbtiles = os.path.join(self.city_dir, "z14plus.mbtiles")
+        self.buildings_mbtiles = os.path.join(self.city_dir, "buildings.mbtiles")
+        if self.buildings_geojson is None:
+            self.buildings_geojson = os.path.join(self.city_dir, "buildings.geojson")
+        self.buildings_zoom_geojson = os.path.join(self.city_dir, "buildings_zoom.geojson")
         
-        # Zoom 14+ uses `buildings_geojson`
-        if self.verb:
-            print("***** Processing zoom 14+ buildings *****")
-        mapshaper_z14 = (
+        
+        mapshaper_cmd = (
             f"node --max-old-space-size={self.RAM} $(which mapshaper) "
-            f"{buildings_geojson} -snap 0.00001 -proj {self.epsg} -clean "
-            f"-filter 'this.area > {self.building_filter_size}' "
-            f"-simplify 20% keep-shapes -proj wgs84 "
-            f"-o precision=0.00001 {z14_geojson}"
+            f"{self.buildings_geojson} -proj {self.epsg} -snap 0.5 "
+            f"-filter 'this.area > {self.building_index_filter_size}' -clean "
+            f"-simplify dp interval=1 -proj wgs84 "
+            f"-o precision=0.00001 {self.buildings_zoom_geojson}"
         )
-        self._run_command(mapshaper_z14)
+        self._run_command(mapshaper_cmd)
         
-        if self.z13_limit != self.building_filter_size:
-            if self.verb:
-                print("***** Processing zoom 13 buildings *****")
-            mapshaper_z13 = (
-                f"node --max-old-space-size={self.RAM} $(which mapshaper) "
-                f"{buildings_geojson} -snap 0.00001 -proj {self.epsg} -clean "
-                f"-filter 'this.area > {self.z13_limit}' "
-                f"-simplify 20% keep-shapes -proj wgs84 "
-                f"-o precision=0.00001 {z13_geojson}"
-            )
-            self._run_command(mapshaper_z13)
-        else:
-            try:
-                if self.verb:
-                    print(f"***** Symlinking zoom 13 buildings from "
-                          f"{z14_geojson} to {z13_geojson} *****")
-                if os.path.lexists(z13_geojson):
-                    os.remove(z13_geojson)
-                os.symlink(os.path.basename(z14_geojson), z13_geojson)
-            except:
-                if self.verb:
-                    print(f"***** Failed to symlink from {z14_geojson} to "
-                          f"{z13_geojson}.  Copying file instead. *****")
-                shutil.copy2(z14_geojson, z13_geojson)
-
-        if self.z12_limit != self.z13_limit:
-            if self.verb:
-                print("***** Processing zoom 12 buildings *****")
-            mapshaper_z12 = (
-                f"node --max-old-space-size={self.RAM} $(which mapshaper) "
-                f"{buildings_geojson} -snap 0.00001 -proj {self.epsg} -clean "
-                f"-filter 'this.area > {self.z12_limit}' "
-                f"-simplify 20% keep-shapes -proj wgs84 "
-                f"-o precision=0.00001 {z12_geojson}"
-            )
-            self._run_command(mapshaper_z12)
-        else:
-            try:
-                if self.verb:
-                    print(f"***** Symlinking zoom 12 buildings from "
-                          f"{z13_geojson} to {z12_geojson} *****")
-                if os.path.lexists(z12_geojson):
-                    os.remove(z12_geojson)
-                os.symlink(os.path.basename(z13_geojson), z12_geojson)
-            except:
-                if self.verb:
-                    print(f"***** Failed to symlink from {z13_geojson} to "
-                          f"{z12_geojson}.  Copying file instead. *****")
-                shutil.copy2(z13_geojson, z12_geojson)
-
+        # Add default building height where needed
+        self._set_default_building_height()
+        
         # Convert to Vector Tiles with Tippecanoe
-        # Zoom 14+
-        self._run_command([
-            "tippecanoe", "-o", self.z14_mbtiles, "-l", "buildings",
-            "--minimum-zoom=14", "--maximum-zoom=15",
-            "-y", "building", z14_geojson, "--force"
-        ])
-        # Zoom 13
-        self._run_command([
-            "tippecanoe", "-o", self.z13_mbtiles, "-l", "buildings",
-            "--minimum-zoom=13", "--maximum-zoom=13",
-            "-y", "building", z13_geojson, "--force"
-        ])
+        tippe_cmd = [
+            "tippecanoe", "-o", self.buildings_mbtiles,
+            "--layer=buildings", "--include=height", "--drop-smallest-as-needed",
+            "-Z12", "-z15", self.buildings_zoom_geojson, "--force"
+        ]
+        self._run_command(tippe_cmd)
+    
+    def _set_default_building_height(self, default_height=4):
+        """
+        Sets default building height for buildings geojson file
+        """
+        # Load the data
+        with open(self.buildings_geojson, 'r') as f:
+            data = json.load(f)
+
+        # Add the field if missing
+        for feature in data.get('features', []):
+            # Ensure properties object exists
+            if 'properties' not in feature:
+                feature['properties'] = {}
+            
+            props = feature['properties']
+            val = props.get('height')
+
+            # Force the key to exist and be a float
+            if val is None or val == "":
+                props['height'] = float(default_height)
+            else:
+                try:
+                    props['height'] = float(val)
+                except (ValueError, TypeError):
+                    props['height'] = float(default_height)
         
-        # Zoom 12
-        self._run_command([
-            "tippecanoe", "-o", self.z12_mbtiles, "-l", "buildings",
-            "--minimum-zoom=12", "--maximum-zoom=12",
-            "-y", "building", z12_geojson, "--force"
-        ])
+        # Overwrite it it
+        with open(self.buildings_geojson, 'w') as f:
+            json.dump(data, f)
     
     def _update_mbtiles_metadata(self, mbtiles_path):
         """
@@ -990,7 +974,10 @@ class MapGen:
             ("DELETE FROM metadata WHERE name='generator_options'", ())
         ]
         for q, params in queries:
-            cur.execute(q, params)
+            try:
+                cur.execute(q, params)
+            except:
+                continue
         conn.commit()
         conn.close()
 
