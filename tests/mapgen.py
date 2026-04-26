@@ -118,9 +118,8 @@ class TestMapGen(unittest.TestCase):
     @patch('os.path.exists')
     def test_ncores_toobig(self, mock_exists):
         """Reduce ncores to os.cpu_count() if it is larger."""
-        big_num = os.cpu_count() + 1
         mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
-                    osmpbf="dummy.osm.pbf", ncores=big_num, verb=False)
+                    osmpbf="dummy.osm.pbf", ncores=9999, verb=False)
         self.assertEqual(mg.ncores, os.cpu_count())
     
     @patch('os.path.exists')
@@ -261,37 +260,99 @@ class TestMapGen(unittest.TestCase):
     @patch('os.path.exists')
     def test_building_filter_logic_valid(self, mock_exists):
         """
-        Test that z13 and z12 limits default correctly and respect hierarchies.
+        Test that building_tile_filter_size defaults correctly and 
+        respects hierarchies.
         """
-        # Case: Defaults (all should equal building_filter_size)
+        # Case: Defaults (should equal building_index_filter_size)
         mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
-                    building_filter_size=100, 
+                    building_index_filter_size=100, 
                     osmpbf="dummy.osm.pbf", verb=False)
-        self.assertEqual(mg.building_filter_size, 100)
-        self.assertEqual(mg.z13_limit, 100)
-        self.assertEqual(mg.z12_limit, 100)
+        self.assertEqual(mg.building_index_filter_size, 100)
+        self.assertEqual(mg.building_tile_filter_size, 100)
 
-        # Case: Custom hierarchy (50 <= 150 <= 300)
+        # Case: Custom hierarchy (150 >= 50)
         mg_custom = MapGen("NYC", [-74.1, 40.6, -73.9, 40.8], 
-                           building_filter_size=50, z13_limit=150, 
-                           z12_limit=300, osmpbf="dummy.osm.pbf", verb=False)
-        self.assertEqual(mg_custom.z13_limit, 150)
-        self.assertEqual(mg_custom.z12_limit, 300)
+                           building_index_filter_size=150, 
+                           building_tile_filter_size=50, 
+                           osmpbf="dummy.osm.pbf", verb=False)
+        self.assertEqual(mg_custom.building_tile_filter_size, 50)
 
     @patch('os.path.exists')
     def test_building_filter_logic_invalid(self, mock_exists):
-        """Fail if z-limits are smaller than the base filter or each other."""
-        # z13 < filter_size
+        """
+        Fail if building_tile_filter_size is smaller than 
+        building_index_filter_size.
+        """
+        # building_index_filter_size < building_tile_filter_size
         with self.assertRaises(ValueError):
             MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
-                   building_filter_size=100, z13_limit=50, 
+                   building_index_filter_size=100, 
+                   building_tile_filter_size=150, 
                    osmpbf="dummy.osm.pbf")
-        
-        # z12 < z13
+
+    ##### Building simplifications #####
+    
+    @patch('os.path.exists')
+    def test_building_simplification_logic_valid(self, mock_exists):
+        """
+        Test that building_index_simplification and 
+        building_tile_simplification assign correctly.
+        """
+        # Case: int
+        mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
+                    building_index_simplification=2, 
+                    building_tile_simplification=2,
+                    osmpbf="dummy.osm.pbf", verb=False)
+        self.assertEqual(mg.building_index_simplification, 2)
+        self.assertEqual(mg.building_tile_simplification, 2)
+
+        # Case: float
+        mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
+                    building_index_simplification=1.5, 
+                    building_tile_simplification=1.5,
+                    osmpbf="dummy.osm.pbf", verb=False)
+        self.assertEqual(mg.building_index_simplification, 1.5)
+        self.assertEqual(mg.building_tile_simplification, 1.5)
+
+    @patch('os.path.exists')
+    def test_building_index_simplification_invalid_negative(self, mock_exists):
+        """Fail if building_index_simplification is negative."""
+        # building_index_filter_size < building_tile_filter_size
         with self.assertRaises(ValueError):
-            MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
-                   building_filter_size=50, z13_limit=100, z12_limit=75,
-                   osmpbf="dummy.osm.pbf")
+            mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
+                        building_index_simplification=-1, 
+                        building_tile_simplification=1,
+                        osmpbf="dummy.osm.pbf", verb=False)
+
+    @patch('os.path.exists')
+    def test_building_tile_simplification_invalid_negative(self, mock_exists):
+        """Fail if building_tile_simplification is negative."""
+        # building_index_filter_size < building_tile_filter_size
+        with self.assertRaises(ValueError):
+            mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
+                        building_index_simplification=1, 
+                        building_tile_simplification=-1,
+                        osmpbf="dummy.osm.pbf", verb=False)
+
+    @patch('os.path.exists')
+    def test_building_index_simplification_invalid_str(self, mock_exists):
+        """Fail if building_index_simplification is a string."""
+        # building_index_filter_size < building_tile_filter_size
+        with self.assertRaises(TypeError):
+            mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
+                        building_index_simplification="1", 
+                        building_tile_simplification=1,
+                        osmpbf="dummy.osm.pbf", verb=False)
+
+    @patch('os.path.exists')
+    def test_building_tile_simplification_invalid_str(self, mock_exists):
+        """Fail if building_tile_simplification is a string."""
+        # building_index_filter_size < building_tile_filter_size
+        with self.assertRaises(TypeError):
+            mg = MapGen("LAX", [-118.5, 33.9, -118.4, 34.0], 
+                        building_index_simplification=1, 
+                        building_tile_simplification="1",
+                        osmpbf="dummy.osm.pbf", verb=False)
 
     ##### Directory and path properties #####
     
