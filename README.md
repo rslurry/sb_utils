@@ -39,9 +39,10 @@ available within your path to create the non-demand files needed for custom maps
 * [pmtiles](https://github.com/protomaps/go-pmtiles/releases)
 * [planetiler.jar](https://github.com/onthegomap/planetiler/releases)
 
-These must be executable (even `planetiler.jar` despite that .jar files are not executable) 
-so that `depot` can determine that they are available.  The code will not run if any of 
-these requirements are missing.
+Except for planetiler.jar, these must be executable so that `depot` can 
+determine that they are available (e.g., if `pmtiles` is not executable, 
+it will be marked as missing).  The code will not run if any of these 
+requirements are missing.
 
 ## Installation
 In the repo directory, run
