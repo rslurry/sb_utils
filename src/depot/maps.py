@@ -1094,7 +1094,7 @@ class MapGen:
             filter_cmd = ["osmium", "tags-filter", self.osmpbf]
             # Build the osmium filter string
             # e.g., "n/place=city n/place=borough"
-            filter_cmd.extend([f"n/places{self.places_suffix}={t}" for t in tags])
+            filter_cmd.extend([f"n/place{self.places_suffix}={t}" for t in tags])
             filter_cmd.extend(["-o", str(osm_pbf), "--overwrite"])
             self._run_command(filter_cmd)
             self._run_command(["osmium", "export", str(osm_pbf), "-o", 
