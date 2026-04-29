@@ -1,9 +1,8 @@
 ## depot: a Python library of map-making utilities for Subway Builder
 
 ## Requirements
-You need a shell.  If you're on Windows, you must use WSL.  Well, maybe there is a way 
-to get it to work without WSL, but I will make no effort to support that, so good luck 
-if you try that.
+This library requires a shell.  Windows users must use WSL.  No support is provided 
+for a non-WSL approach, but savvy users may be able to figure one out.
 
 This library is confirmed to work with the following Python package versions:
 | Package            | Version       |
@@ -17,18 +16,20 @@ This library is confirmed to work with the following Python package versions:
 | shapely            | 2.1.2         |
 | duckdb             | 1.5.1         |
 
-You can prepare a [conda](https://docs.conda.io/projects/conda/en/stable/index.html) 
+Users can prepare a [conda](https://docs.conda.io/projects/conda/en/stable/index.html) 
 environment with these package versions using the supplied environment file:
 
     conda env create -f environment.yml
 
-If you don't already have a preferred Python environment manager, I suggest 
-using conda.  At the link above, download the Miniforge installer for your OS. 
-Run it and follow the instructions.  Then you can use the above command to 
-replicate the environment that is confirmed to work for this library.
+For non-conda environment managers, ensure you have the appropriate versions listed 
+above along with any dependencies.  Users that do not already have a preferred 
+Python environment manager are recommended to use conda due to the provided 
+environment.yml file.  To install conda, at the link above, download the Miniforge 
+installer for your OS. Run it and follow the instructions.  Then use the above command 
+to replicate the environment that is confirmed to work for this library.
 
 In addition to the Python environment, all of the following CLI programs must be 
-available within your path to create the non-demand files needed for custom maps:
+available within the path to create the non-demand files needed for custom maps:
 * node
 * [mapshaper](https://github.com/mbloch/mapshaper)
 * [osmium](https://osmcode.org/osmium-tool/)
@@ -49,6 +50,9 @@ In the repo directory, run
 
     pip install .
 
+The library is now installed and can be imported.  See `examples/` for scripts 
+that use the library to build a map.
+
 ## Usage
 
 At present, `depot` includes the ability to create the non-demand files for 
@@ -68,6 +72,7 @@ custom maps.  This is handled through the `MapGen` class.
 | `cities`             | list of str. OSM 'place' values to show at the lowest zooms. If None, labels will not be created for that zoom. Default: None         |
 | `suburbs`             | list of str. Like cities, but for medium zooms. Default: None         |
 | `neighborhoods`             | list of str. Like cities, but for the highest zooms. Default: None         |
+| `places_suffix`             | str. Suffix to add after the `place` tag when pulling labels from OSM. For example, if using Chinese labels, set this to "CN" to pull from `place:CN`. Default: "" |
 | `buildings_geojson`                | str or None. If a string, path to a buildings.geojson file to use as input. If None, fetches Overture buildings. Default: None |
 | `redownload_buildings`             | bool. Determines whether to re-fetch buildings (True) or load previously-saved buildings if available (False). Default: False        |
 | `ncores`             | int. Number of cores to use when processing tiles in parallel. Setting this to None will use all available cores. Default: 1         |
@@ -85,23 +90,19 @@ custom maps.  This is handled through the `MapGen` class.
 | `add_labels`                 | Adds labels to the PMTiles file created by `generate_pmtiles`  |
 | `run_all`                    | Runs the above 5 methods consecutively                         |
 
-These methods take no inputs; they use what you provide when initializing the 
-object. `extract_base_data` must be executed first; `process_buildings` must be executed before `generate_pmtiles`; 
+These methods take no inputs; they use the user-provided inputs when initializing the object. 
+`extract_base_data` must be executed first; 
+`process_buildings` must be executed before `generate_pmtiles`; 
 and `generate_pmtiles` must be executed before `add_labels`.
 
-You may need to re-run `generate_pmtiles` multiple times to ensure that there 
-aren't tile size issues at certain zooms; you will see a warning message if 
-there is that will mention the file size (e.g., 591365) exceeds the maximum 
-allowed size (500000).  Adjust the relevant limit (e.g., `z12_limit` for issues 
-with tiles at zoom 12) and re-run until you do not have any of those messages.
-
-You may also want to re-run `add_labels` multiple times to decide which place 
+Users may want to re-run `process_buildings` and `generate_pmtiles` multiple times to tweak the filtering and 
+simplification parameters.  Users may also want to re-run `add_labels` multiple times to decide which place 
 tags should be in which categories.
 
 ### Labels
-You may want to look at OSM's list of available 'place' keys: <https://wiki.openstreetmap.org/wiki/Key:place>
+Users may want to look at OSM's list of available 'place' keys: <https://wiki.openstreetmap.org/wiki/Key:place>
 
-For the maps I have made, here are the setups I chose:
+For reference, the setups slurry uses for the maps they have made are provided below:
 
     US maps:
         cities = ['city', 'borough', 'town']
@@ -116,11 +117,14 @@ For the maps I have made, here are the setups I chose:
         suburbs = ['city', 'borough', 'town', 'suburb']
         neighborhoods = ['city', 'borough', 'town', 'suburb', 'village', 'hamlet']
 
+Experiment and see what provides the right amount of labeling.
+
 ## Future plans
-At some point I will add a way to create and manipulate demand data.  Stay tuned.
+- Support for bathymetric data (`ocean_depth_index.json` and visible within the pmtiles)
+- A module to create and manipulate demand data
 
 ## Contributions
-I'd love for people to continue developing this tool so that it can serve the needs of the community. 
+This tool is designed to serve the needs of the map-making community. 
 Feel free to submit Pull Requests with new features, optimizations, etc.
 
 ## Questions?  Issues?  Requests?
