@@ -63,7 +63,7 @@ class MapGen:
                        building_tile_filter_size=None, 
                        building_index_simplification=1,
                        building_tile_simplification=1,
-                       cities=None, suburbs=None, neighborhoods=None,
+                       cities=None, suburbs=None, neighborhoods=None, places_suffix="",
                        buildings_geojson=None, redownload_buildings=False, 
                        ncores=1, RAM=4, cleanup_files=True, verb=True):
         """
@@ -103,6 +103,7 @@ class MapGen:
                              If None, labels will not be created for that zoom.
         suburbs: list of str. Like cities, but for medium zooms.
         neighborhoods: list of str. Like cities, but for the highest zooms.
+        places_suffix: str. Suffix to add after the `place` tag when pulling labels from OSM. For example, if using Chinese labels, set this to "CN" to pull from `place:CN`.
         buildings_geojson: str. Path to buildings.geojson file to use.
                                 If provided, Overture buildings will not be 
                                 downloaded.
@@ -165,6 +166,8 @@ class MapGen:
         self.cities = cities
         self.suburbs = suburbs
         self.neighborhoods = neighborhoods
+
+        self.places_suffix = places_suffix
         
         # Create directory for outputs
         os.makedirs(self.city_dir, exist_ok=True)
@@ -1083,12 +1086,17 @@ class MapGen:
             
             # Build the osmium filter string
             # e.g., "n/place=city n/place=borough"
-            filter_str = " ".join([f"n/place={t}" for t in tags])
-            
+            if self.places_suffix == "":
+                filter_str = " ".join([f"n/place={t}" for t in tags])
+            else:
+                filter_str = " ".join([f"n/place:{self.places_suffix}={t}" for t in tags])
             # Extract and Export
             filter_cmd = ["osmium", "tags-filter", self.osmpbf]
             for t in tags:
-                filter_cmd.append(f"n/place={t}")
+                if self.places_suffix == "":
+                    filter_cmd.append(f"n/place={t}")
+                else:
+                    filter_cmd.append(f"n/place:{self.places_suffix}={t}")
             filter_cmd.extend(["-o", str(osm_pbf), "--overwrite"])
             self._run_command(filter_cmd)
             self._run_command(["osmium", "export", str(osm_pbf), "-o", 
