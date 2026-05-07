@@ -218,9 +218,6 @@ class MapGen:
         else:
             self.places_suffix = ""
         
-        # Create directory for outputs
-        os.makedirs(self.city_dir, exist_ok=True)
-        
         if self.verb:
             print("***** MapGen initialized *****")
             print("------------------------------")
@@ -260,7 +257,7 @@ class MapGen:
         merged_osmpbf = os.path.join(self.city_dir, f"{self.city.lower()}-merged-source.osm.pbf")
         osmium_cmd = ["osmium", "merge"]
         osmium_cmd.extend(self.osmpbf)
-        osmium_cmd.extend(["-o", merged_osmpbf])
+        osmium_cmd.extend(["-o", merged_osmpbf, "--overwrite"])
         self._run_command(osmium_cmd)
         self.osmpbf = merged_osmpbf
     
@@ -1421,11 +1418,10 @@ class MapGen:
                              f"{target_path}")
             
         self._outputdir = target_path
-
-    @property
-    def city_dir(self):
-        """Helper to get the full path to the city-specific output folder."""
-        return os.path.join(self.outputdir, self.city)
+        
+        # Set and create city_dir
+        self.city_dir = os.path.join(self._outputdir, self.city)
+        os.makedirs(self.city_dir, exist_ok=True)
     
     @property
     def ncores(self):
