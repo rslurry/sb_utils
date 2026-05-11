@@ -93,6 +93,7 @@ custom maps.  This is handled through the `MapGen` class.
 | `generate_pmtiles`           | Creates the PMTiles file with no labels                        |
 | `add_labels`                 | Adds labels to the PMTiles file created by `generate_pmtiles`  |
 | `run_all`                    | Runs the above 5 methods consecutively                         |
+| `check_labels`               | Reports the types and number of places (available map labels)  |
 
 These methods take no inputs; they use the user-provided inputs when initializing the object. 
 `extract_base_data` must be executed first; 
@@ -100,11 +101,13 @@ These methods take no inputs; they use the user-provided inputs when initializin
 and `generate_pmtiles` must be executed before `add_labels`.
 
 Users may want to re-run `process_buildings` and `generate_pmtiles` multiple times to tweak the filtering and 
-simplification parameters.  Users may also want to re-run `add_labels` multiple times to decide which place 
-tags should be in which categories.
+simplification parameters.  Run `check_labels` to see what types of labels are available for your map and their 
+frequency to inform what you categorize for `add_labels`.  Users may want to re-run `add_labels` multiple times 
+to decide which place tags should be in which categories.
 
 ### Labels
 Users may want to look at OSM's list of available 'place' keys: <https://wiki.openstreetmap.org/wiki/Key:place>
+The `check_labels` method reports what types of places are used in the map, and how often.
 
 For reference, the setups slurry uses for the maps they have made are provided below:
 

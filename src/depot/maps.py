@@ -53,6 +53,7 @@ class MapGen:
     _validate_env : Checks if all required CLI tools are installed and 
                     accessible.
     rename_geojson_property : Renames a GeoJSON property key using jq.
+    check_labels : Checks city.osm.pbf and reports the types and counts of places.
     add_labels : Extraction and tiling for labels. 
     _validate_places : Ensures cities/suburbs/neighborhoods are valid entries.
     """
@@ -213,8 +214,10 @@ class MapGen:
         self.label_name_language = label_name_language
         self.road_name_preferred_language = road_name_preferred_language
 
-        if (len(places_suffix)==2 or (len(places_suffix)==3 and places_suffix[0]==':')):
-            self.places_suffix = places_suffix.replace(':', '')
+        if len(places_suffix)==3 and places_suffix[0]==':':
+            self.places_suffix = places_suffix
+        elif len(places_suffix)==2 and ':' not in places_suffix:
+            self.places_suffix = ':' + places_suffix
         else:
             self.places_suffix = ""
         
@@ -1089,6 +1092,18 @@ class MapGen:
             if os.path.exists(output_path):
                 os.remove(output_path)
             raise RuntimeError(f"jq transformation failed: {e}")
+    
+    def check_labels(self):
+        """Checks city.osm.pbf and reports the types and counts of places."""
+        places_osmpbf = os.path.join(self.city_dir, "places.osm.pbf")
+        places_geojson = os.path.join(self.city_dir, "places.geojson")
+        self._run_command(["osmium", "tags-filter", self.osmpbf, "n/place", 
+                           "-o", places_osmpbf, "--overwrite"])
+        
+        self._run_command(["osmium", "export", places_osmpbf, "-o", 
+                           places_geojson, "--overwrite"])
+        
+        self._run_command(f"""grep -o '"place":"[^"]*"' {places_geojson} | cut -d'"' -f4 | sort | uniq -c | sort -rn""")
     
     def add_labels(self):
         """
