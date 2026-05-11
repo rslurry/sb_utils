@@ -213,8 +213,10 @@ class MapGen:
         self.label_name_language = label_name_language
         self.road_name_preferred_language = road_name_preferred_language
 
-        if (len(places_suffix)==2 or (len(places_suffix)==3 and places_suffix[0]==':')):
-            self.places_suffix = places_suffix.replace(':', '')
+        if len(places_suffix)==3 and places_suffix[0]==':':
+            self.places_suffix = places_suffix
+        elif len(places_suffix)==2 and ':' not in places_suffix:
+            self.places_suffix = ':' + places_suffix
         else:
             self.places_suffix = ""
         
